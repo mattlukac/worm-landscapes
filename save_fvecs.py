@@ -1,53 +1,40 @@
 import numpy as np 
 import pandas as pd
-import os
+import pickle
 
 # load fvec
-# has 16 columns, last 12 are summary stats
-# first 4 are chrom, classifiedWinStart, classifiedWinEnd, bigWinRange
-# number of rows are number of windows
+# first 4 cols are 
+# chrom, classifiedWinStart, classifiedWinEnd, bigWinRange
 
-# so each window has a single feature vector associated to it
 # we want to distinguish between uniform mut rate or 2x mut rate on arms
 # using the signal from scanning across the chromosome
-# thus it makes sense to use (num_wins, num_stats, num_regions) as inputs
+# thus it makes sense to use (num_stats, num_subw, num_regions) as inputs
 # where num_regions is 3 for left arm, centromere, right arm
 
-# each file will have different total rows 
-# so we first subset them all to have the intersection of 
-# all file rows, with respect to classifiedWinStart
+num_stats = 13 # 13 with beta, 12 without
+num_subw = 25
+def reshape(data, row_num):
+    data = data.iloc[row_num]
+    data = data.loc['pi_win0':] # slice all stats
+    data = data.values.reshape(num_stats, -1)
+    return data
 
-# get directory and file names 
-worm_dir = '/projects/haldane/shared/worm_landscapes/10kb/'
-file_names = np.loadtxt('2kb_file_names.txt', dtype='str')
-
-def load_wins(file_name):
-    wins = np.loadtxt(worm_dir + file_name,
-                      delimiter='\t',
-                      usecols=(3,),
-                      dtype='str')
-    return wins[1:]
-
-# get intersection indices for first two files
-# and intersect it with next file
-def intersect_wins(file_names):
-    """
-    Compares bigWinRange between adjacent fvec files
-    and returns their intersection
-    """
-    # load the first two files
-    old_wins = load_wins(file_names[0])
-    new_wins = load_wins(file_names[1])
+def save_data(worm_dir, filenames):
+    # get directory and file names 
+    filenames = np.loadtxt(filenames, dtype='str')
+    num_sims = len(filenames)
     
-    # intersect the files
-    old_and_new = np.intersect1d(old_wins, new_wins)
+    # data to be saved
+    fvecs = np.zeros((num_sims, num_stats, num_subw, 3))
 
-    # get cumulative intersection
-    for file_name in file_names[2:]:
-        new_wins = load_wins(file_name)
-        old_and_new = np.intersect1d(old_and_new, new_wins)
+    for i, sim_name in enumerate(filenames):
+        sim = pd.read_table(worm_dir + sim_name)
+        for j in range(3):
+            fvecs[i,:,:,j] = reshape(sim, j)
 
-    return old_and_new
+    with open('data/fvecs.pkl', 'wb') as fvec_pkl:
+        pickle.dump(fvecs, fvec_pkl)
 
-common_rows = intersect_wins(file_names)
-print(common_rows)
+worm_dir = '/projects/haldane/shared/worm_landscapes/1mb_25subw_beta/SIM/'
+filenames = '1mb_25subw_beta_filenames.txt'
+save_data(worm_dir, filenames)
