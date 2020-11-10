@@ -2,6 +2,7 @@
 data
 model_logs
 filenames
+__pycache__
 
 # files
 
